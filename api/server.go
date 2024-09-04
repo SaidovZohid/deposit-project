@@ -1,9 +1,6 @@
 package api
 
 import (
-	"context"
-	"fmt"
-
 	v1 "github.com/SaidovZohid/deposit-project/api/v1"
 	"github.com/SaidovZohid/deposit-project/config"
 	"github.com/SaidovZohid/deposit-project/storage"
@@ -15,22 +12,6 @@ type Handler struct {
 	Strg storage.StorageI
 }
 
-type something func(ctx context.Context, arg int)
-
-func Handle(arg ...something) {
-	for _, fn := range arg {
-		fn(context.Background(), 10)
-	}
-}
-
-func Print(ctx context.Context, arg int) {
-	fmt.Println(arg)
-}
-
-func Add(ctx context.Context, arg int) {
-	fmt.Println(arg + 10)
-}
-
 func New(h *Handler) *gin.Engine {
 	engine := gin.Default()
 
@@ -39,9 +20,12 @@ func New(h *Handler) *gin.Engine {
 		Strg: h.Strg,
 	})
 
-	engine.GET("/user/:id", handlerV1.GetUserById)
-
-	Handle(Print, Add)
+	apiV1 := engine.Group("/v1")
+	apiV1.GET("/user/:id", handlerV1.GetUserById)
+	apiV1.POST("/user", handlerV1.CreateUser)
+	apiV1.PUT("/user", handlerV1.UpdateUser)
+	apiV1.DELETE("/user/:id", handlerV1.DeleteUser)
+	apiV1.GET("/users", handlerV1.GetAllUsers)
 
 	return engine
 }

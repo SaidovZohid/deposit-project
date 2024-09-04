@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/SaidovZohid/deposit-project/storage/repo"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -129,4 +130,72 @@ func (u *userRepo) GetByEmail(ctx context.Context, email string) (*repo.UserMode
 	}
 
 	return &resp, nil
+}
+
+func (u *userRepo) Delete(ctx context.Context, userId int64) error {
+	_, err := u.db.Exec(ctx, "DELETE FROM users WHERE id = $1", userId)
+	return err
+}
+
+func (u *userRepo) GetAll(ctx context.Context, req *repo.GetAllUserReq) (*repo.GetAllUserResp, error) {
+	query := `
+        SELECT
+            id,
+            full_name,
+            email,
+            password,
+            phone_number,
+            balance,
+            created_at,
+            updated_at
+        FROM users WHERE deleted_at IS NULL
+    `
+	var filter string
+	order := " ORDER BY created_at DESC "
+
+	if req.Limit != "" {
+		order += fmt.Sprintf(" LIMIT %v ", req.Limit)
+	}
+	if req.Offset != "" {
+		order += fmt.Sprintf(" OFFSET %v ", req.Offset)
+	}
+	if req.Query != "" {
+		filter += fmt.Sprintf(`
+            AND (
+                full_name ILIKE '%%%[1]v%%'
+                OR phone_number ILIKE '%%%[1]v%%'
+            )
+        `, req.Query)
+	}
+
+	rows, err := u.db.Query(ctx, query+filter+order)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	data := repo.GetAllUserResp{}
+	for rows.Next() {
+		var resp repo.UserModelResp
+		err = rows.Scan(
+			&resp.Id,
+			&resp.FullName,
+			&resp.Email,
+			&resp.Password,
+			&resp.PhoneNumber,
+			&resp.Balance,
+			&resp.CreatedAt,
+			&resp.UpdatedAt,
+		)
+		if err != nil {
+			return nil, err
+		}
+		data.Users = append(data.Users, &resp)
+	}
+
+	err = u.db.QueryRow(ctx, "SELECT count(1) FROM users WHERE deleted_at IS NULL "+filter).Scan(&data.Count)
+	if err != nil {
+		return nil, err
+	}
+
+	return &data, nil
 }
